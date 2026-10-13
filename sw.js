@@ -1,5 +1,5 @@
 // Offline support: serve the app shell from cache, refresh it in the background.
-var CACHE = "hours-c47c9c335e";
+var CACHE = "hours-3a2233f2fb";
 var SHELL = ["./", "index.html", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", function (e) {
