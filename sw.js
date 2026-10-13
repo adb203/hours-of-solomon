@@ -1,6 +1,6 @@
 // Offline support: serve the app shell from cache, refresh it in the background. A new build has a new cache name;
 // it installs straight from the network, takes over open pages at once, and the page reloads itself onto it.
-var CACHE = "hours-3ba555b397";
+var CACHE = "hours-6ec3aec096";
 var SHELL = ["./", "index.html", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", function (e) {
