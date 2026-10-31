@@ -197,6 +197,11 @@ input, select { background: var(--bg); border: 1px solid var(--rule); border-rad
 .learn-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
 .lead { font-size: 1.05rem; max-width: 36rem; }
 .muted.small, p.small { font-size: 0.85rem; }
+.daily .sub-label { margin-top: 6px; }
+.daily ul.plain { margin: 0; padding-left: 1.1rem; }
+.daily li { margin: 4px 0; }
+.daily .daily-now { color: var(--ember); font-weight: 600; }
+.daily-body { display: grid; gap: 8px; }
 .prayer-text { white-space: normal; line-height: 1.55; margin: 8px 0; }
 .next-card h4 { margin: 14px 0 6px; }
 .prose { display: grid; gap: 12px; max-width: 38rem; }
@@ -814,6 +819,8 @@ svg text { font-family: var(--f-body); }
       <p class="eyebrow">Proper for you this hour</p>
       <div id="can-now-list" class="row-list"></div>
     </section>
+
+    <section id="daily" class="section daily"></section>
 
     <section class="section">
       <p class="eyebrow">What this hour is good for</p>
@@ -1958,6 +1965,7 @@ Astro.upcoming = function (now, loc, pred, limit, maxDays) {
     // coming up, and what fits this hour
     renderComing(pd, hour, loc);
     renderCanNow();
+    if (window.Notoria && Notoria.daily) Notoria.daily($("daily"), pd, loc);
 
     // table
     var tb = $("t-body");
@@ -6061,7 +6069,89 @@ window.Grimoire = (function () {
     body.appendChild(c);
   }
 
-  window.Notoria = { render: render, moonDay: moonDay, windows: windows, newMoon: newMoon };
+
+  // ---------- the front page: the everyday prayers for learning, memory and creativity ----------
+  var DAILY = [
+    { id: "alpha", label: "Alpha and Omega", why: "Opens the day's learning and asks for the grace to master what you study." },
+    { id: "lux", label: "Lux mundi", why: "Asks for a clear mind, a sharp tongue and a firm memory." },
+    { id: "memory-prologue", label: "Te queso Domine", why: "Asks for understanding, and to keep in memory what you hear and read." }
+  ];
+  var LATER = { id: "memoria", label: "Memoria irreprehensibilis", why: "If you practise later in the day, say this right before the session." };
+  var BOOST = [["mercury", "learning and memory"], ["venus", "art and music"], ["sun", "inspiration"]];
+  var DAILY_KEY = "solomon.notoria.daily";
+  function dateKey(d) { return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+  function saidToday() { try { return localStorage.getItem(DAILY_KEY) === dateKey(new Date()); } catch (e) { return false; } }
+  function prayerBlock(x) {
+    var p = PR[x.id], d = el("details", "about daily-prayer");
+    var sm = el("summary"); sm.appendChild(el("span", null, x.label)); d.appendChild(sm);
+    d.appendChild(el("p", "muted small", x.why));
+    if (p && p.text) d.appendChild(el("blockquote", "callout prayer-text", p.text));
+    return d;
+  }
+  // The current or next hour of each planet, looking up to a day ahead.
+  function nextHourOf(planet, pd, loc) {
+    var day = pd, i = pd.current.index, now = new Date();
+    for (var n = 0; n < 30; n++) {
+      if (i > 23) { day = Astro.planetaryDay(new Date(+day.nextSunrise + 60000), loc); i = 0; }
+      var h = day.hours[i];
+      if (h.planet === planet && h.end > now) return h;
+      i++;
+    }
+    return null;
+  }
+  function nextNewMoon(now) { return newMoon(lastNewMoon(now) + 1); }
+  var dailyBuilt = null;
+  function daily(box, pd, location) {
+    var key = dateKey(new Date());
+    if (dailyBuilt !== key || !box.firstChild) {
+      dailyBuilt = key;
+      box.replaceChildren();
+      var head = el("div", "head-row");
+      head.appendChild(el("p", "eyebrow", "Everyday prayers · Ars Notoria"));
+      var done = el("button", "link-btn small", ""); done.type = "button"; head.appendChild(done);
+      box.appendChild(head);
+      var body = el("div", "daily-body");
+      body.appendChild(el("p", null, "Each morning, soon after you wake and before other work, say these three in order. Then go straight into your art, music or practice."));
+      DAILY.forEach(function (x) { body.appendChild(prayerBlock(x)); });
+      body.appendChild(el("p", "sub-label", "Later in the day"));
+      body.appendChild(prayerBlock(LATER));
+      body.appendChild(el("p", "sub-label", "For a boost"));
+      body.appendChild(el("div", "daily-boost"));
+      body.appendChild(el("p", "daily-moon muted small"));
+      body.appendChild(el("p", "muted small", "Why mornings: the book sets these prayers for early morning, before any other work, so the mind is fresh and the day's study starts under them. Why these hours: Mercury rules learning and memory, Venus the arts, and the Sun inspiration and success."));
+      box.appendChild(body);
+      var said = el("p", "daily-said muted", "Said this morning ✓ Tap Show to read them again.");
+      box.appendChild(said);
+      function sync() {
+        var s = saidToday();
+        body.hidden = s; said.hidden = !s;
+        done.textContent = s ? "Show" : "Said today";
+      }
+      done.addEventListener("click", function () {
+        try {
+          if (saidToday() && body.hidden) { body.hidden = false; said.hidden = true; done.textContent = "Hide"; return; }
+          if (saidToday()) { sync(); return; }
+          localStorage.setItem(DAILY_KEY, dateKey(new Date()));
+        } catch (e) {}
+        sync();
+      });
+      sync();
+    }
+    // the parts that change through the day
+    var bx = box.querySelector(".daily-boost"); bx.replaceChildren();
+    var ul = el("ul", "plain");
+    BOOST.forEach(function (b) {
+      var h = nextHourOf(b[0], pd, location), P = H.planets[b[0]];
+      if (!h) return;
+      var nowIn = h.start <= new Date();
+      ul.appendChild(el("li", nowIn ? "daily-now" : null, P.name + " hour, for " + b[1] + ": " + (nowIn ? "now, until " + H.fmtTime(h.end) : short(h.start) + " " + H.fmtTime(h.start) + " – " + H.fmtTime(h.end))));
+    });
+    bx.appendChild(ul);
+    var nm = nextNewMoon(new Date());
+    box.querySelector(".daily-moon").textContent = "For a creative idea: on the night of the new Moon (" + short(nm) + "), hold your project in mind as you fall asleep, on your right side.";
+  }
+
+  window.Notoria = { daily: daily, render: render, moonDay: moonDay, windows: windows, newMoon: newMoon };
 })();
 </script>
 <script>// Explore: a full-screen viewer for the figures, seals and plates, and for the Tree of Life.
